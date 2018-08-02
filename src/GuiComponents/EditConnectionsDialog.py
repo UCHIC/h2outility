@@ -11,7 +11,7 @@ from wx.lib.pubsub import pub
 # noinspection PyPropertyAccess,PyUnusedLocal,PyUnusedLocal,PyUnusedLocal,PyUnusedLocal,PyUnusedLocal,PyUnusedLocal
 class DatabaseConnectionDialog(wx.Dialog):
     def __init__(self, parent, connections, selected=0):
-        wx.Dialog.__init__(self, parent, id=wx.ID_ANY, title=u'odify Database Connections', pos=wx.DefaultPosition,
+        wx.Dialog.__init__(self, parent, id=wx.ID_ANY, title=u'Modify Database Connections', pos=wx.DefaultPosition,
                            size=wx.DefaultSize, style=wx.DEFAULT_DIALOG_STYLE)
 
         self.connections = connections
