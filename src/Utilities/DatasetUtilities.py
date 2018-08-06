@@ -203,7 +203,11 @@ def GetTimeSeriesDataframe(series_service, series_list, site_id, qc_id, source_i
     return csv_table, q_list, censor_list  # don't ask questions... just let it happen
 
 
-def BuildCsvFile(series_service, series_list, year=None, failed_files=list()):  # type: (SeriesService, list[Series], int, list[tuple(str)]) -> str | None
+def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # type: (SeriesService, list[Series], int, list[tuple(str)]) -> str | None
+
+    if failed_files is None:
+        failed_files = list()
+
     try:
         if len(series_list) == 0:
             print('Cannot generate a file for no series')
@@ -341,7 +345,14 @@ def GetSeriesYearRange(series_list):
     return range(start_date.year, end_date.year + 1)
 
 
-def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=[], censorcodes=set()):
+def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=None, censorcodes=None):
+
+    if qualifier_codes is None:
+        qualifier_codes = list()
+
+    if censorcodes is None:
+        censorcodes = set()
+
     header = ''
 
     if len(series_list) == 1:
@@ -349,7 +360,7 @@ def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=[], censorc
     else:
         var_data = CompactVariableData()
         for series in series_list:
-            var_data.addData(series.variable, series.method)
+            var_data.variable_method_data.append((series.variable, series.method))
 
     source_info = SourceInfo()
     source_info.setSourceInfo(source.organization, source.description, source.link, source.contact_name, source.phone,
@@ -469,7 +480,7 @@ class SourceInfo:
         self.citation = citn
 
     def outputSourceInfo(self):
-        outputStr = "# Source Information\n# ------------------\n"
+        outputStr = "# Source Information\n# ----------------------------------\n"
         outputStr += self.sourceOutHelper("Organization", self.organization)
         outputStr += self.sourceOutHelper("SourceDescription", self.sourceDescription)
         outputStr += self.sourceOutHelper("SourceLink", self.sourceLink)
@@ -529,7 +540,7 @@ class ExpandedVariableData(VariableFormatter):
     def printToFile(self):
         formatted = ""
         formatted += "# Variable and Method Information\n"
-        formatted += "# ---------------------------\n"
+        formatted += "# ----------------------------------\n"
         formatted += self.formatHelper("VariableCode", self.varCode)
         formatted += self.formatHelper("VariableName", self.varName)
         formatted += self.formatHelper("ValueType", self.valueType)
@@ -563,21 +574,17 @@ class ExpandedVariableData(VariableFormatter):
 class CompactVariableData(VariableFormatter):
     def __init__(self):
         super(CompactVariableData, self).__init__()
-        self.var_dict = {}
-        self.method_dict = {}
+        self.variable_method_data = []
 
-    def addData(self, var, method):
-        self.var_dict[var] = method
 
     def printToFile(self):
-        # if not isinstance(vars_to_print, str) or len(vars_to_print) == 0:
-        #     return ""
+
         header = "# Variable and Method Information\n"
-        header += "# ---------------------------\n"
-        # formatted = ""
-        # formatted += "# Variable and Method Information\n"
+        header += "# ----------------------------------\n"
+
         rows = []
-        for variable, method in self.var_dict.iteritems():  # type: (Variable, Method)
+
+        for variable, method in self.variable_method_data:
 
             definitions = []
 
@@ -588,6 +595,7 @@ class CompactVariableData(VariableFormatter):
 
             definitions.append(self.formatHelper("VariableCode", variable.code))
             definitions.append(self.formatHelper("VariableName", variable.name))
+            definitions.append(self.formatHelper("MethodID", method.id))
             definitions.append(self.formatHelper("ValueType", variable.value_type))
             definitions.append(self.formatHelper("DataType", variable.data_type))
             definitions.append(self.formatHelper("GeneralCategory", variable.general_category))
