@@ -59,8 +59,11 @@ class WxHelper:
 
             self.DisableCellEditControl()
 
-            self.LastRowSorted = 0
-            self.LastSortInverted = False
+            # self.LastRowSorted = 0
+            # self.LastSortInverted = False
+            self.sort_by_index = 0
+            self.is_inverted = False
+            self.prev_sort_by_index = 0
 
             for i in range(0, len(WxHelper.SeriesGrid.LABELS)):
                 self.SetColLabelValue(i, WxHelper.SeriesGrid.LABELS[i][0])
@@ -80,50 +83,62 @@ class WxHelper:
             app.Bind(wx.PyEventBinder(wx.grid.wxEVT_GRID_CELL_RIGHT_CLICK, 1), self.OnCellRightClick, self)
             app.Bind(wx.PyEventBinder(wx.grid.wxEVT_GRID_COL_SORT, 1), self.OnSortClicked, self)
 
-        def OnSortClicked(self, event):
+        def OnSortClicked(self, event):  # type: (wx.grid.GridEvent) -> None
             """
-
             :type event: wx.grid.GridEvent
             """
-            sort_inverted = not self.LastSortInverted if self.LastRowSorted == event.Col else False
-            self.SortRowsByColumn(event.Col, sort_inverted)
+            self.prev_sort_by_index = self.sort_by_index
+            self.sort_by_index = getattr(event, 'Col', 0)
+
+            reverse = self.sort_by_index == self.prev_sort_by_index and not self.is_inverted
+            self.is_inverted = reverse
+
+            self.SortRowsByColumn(self.sort_by_index, reverse)
 
         def ApplyLastSort(self):
-            self.SortRowsByColumn(self.LastRowSorted, self.LastSortInverted)
+            self.SortRowsByColumn(self.prev_sort_by_index, self.is_inverted)
 
-        def SortRowsByColumn(self, column_number, sort_inverted):
-            sorted_list = []
-            for i in range(0, self.NumberRows):
-                sort_value = self.GetCellValue(i, column_number)
-                try:
-                    sort_value = float(sort_value)
-                except ValueError:
-                    pass
+        def SortRowsByColumn(self, col=0, reverse=False):
+            """
+            :param col: int value specifying the column to sort by
+            :param reverse: boolean value to indicate whether to reverse the sort order
+            :return: None
+            """
+            series = []
+            for index in range(0, self.NumberRows):
+                serie = [self.GetCellValue(index, i) for i in range(0, self.GetNumberCols())]
+                series.append(map(lambda x: int(x) if x.isdigit() else x, serie))
 
-                sorted_list.append((sort_value, self.GetValuesForRow(i)))
+            series.sort(key=lambda row: row[col], reverse=reverse)
 
-            sorted_list.sort(key=lambda x: x[0], reverse=sort_inverted)
+            for i in range(0, len(series)):
+                self.SetRowValue(i, series[i])
 
-            self.Clear()
-            for row_values in [item[1] for item in sorted_list]:
-                self.AddGridRow(list(row_values))
+        def SetRowValue(self, row, values):  # type: (int, list) -> None
+            """
+            Sets cell values given by *args into the row at the specified position
+            :param row: The row's position (index)
+            :param values: A list of values to be inserted into the row
+            :return: None
+            """
+            for col in range(0, len(values)):
+                value = values[col]
+                if not isinstance(value, unicode):
+                    value = unicode(value)
 
-            self.LastRowSorted = column_number
-            self.LastSortInverted = sort_inverted
+                self.SetCellValue(row, col, value)
 
         def GetValuesForRow(self, row_number):
             return [self.GetCellValue(row_number, column_number) for column_number in range(0, self.NumberCols)]
 
         def AddGridRow(self, values):
             """
-
             :type values: list[object]
-            :type grid: wx.grid.Grid
             """
-            num_cols = len(values) if len(values) <= self.NumberCols else self.NumberCols
             self.AppendRows(1)
-            for i in range(0, num_cols):
-                self.SetCellValue(self.GetNumberRows() - 1, i, unicode(values[i]))
+
+            row_pos = self.GetNumberRows() - 1
+            self.SetRowValue(row_pos, values)
 
         def AppendSeries(self, series):
             values = [series.id, series.site_code, series.site_name, series.variable_name,

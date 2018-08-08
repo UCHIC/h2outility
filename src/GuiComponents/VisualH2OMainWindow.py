@@ -467,7 +467,7 @@ class VisualH2OWindow(wx.Frame):
         if mngres is not None:
             mngres.selected_series = self.get_selected_series()
 
-    def _move_from_selected_series(self, event):
+    def _move_to_available_series(self, event):
         series_list = [self.odm_series_dict[series_id] for series_id in self.selected_series_grid.GetSelectedSeries()]
         self.available_series_grid.InsertSeriesList(series_list, do_sort=True)
         self.selected_series_grid.RemoveSelectedRows()
@@ -682,12 +682,6 @@ class VisualH2OWindow(wx.Frame):
                 self.set_odm_connection(self.H2OService.DatabaseConnections[managed_resource.odm_db_name])
 
                 self.reset_series_in_grid()
-                matches = self._get_current_series_ids_from_resource(managed_resource)
-                for series in self.odm_series_dict.itervalues():
-                    if series.id in matches:
-                        self.selected_series_grid.AppendSeries(series)
-                    else:
-                        self.available_series_grid.AppendSeries(series)
 
                 self.chunk_by_series_checkbox.SetValue(wx.CHK_CHECKED if not managed_resource.single_file else wx.CHK_UNCHECKED)
                 self.chunk_by_year_checkbox.Value = managed_resource.chunk_years
@@ -879,7 +873,7 @@ class VisualH2OWindow(wx.Frame):
 
         self.remove_selected_button = wx.BitmapButton(self.panel, wx.ID_ANY, left_arrow, wx.DefaultPosition,
                                                       wx.DefaultSize)
-        self.Bind(wx.EVT_BUTTON, self._move_from_selected_series, self.remove_selected_button)
+        self.Bind(wx.EVT_BUTTON, self._move_to_available_series, self.remove_selected_button)
 
         self.remove_selected_button.Disable()
         self.add_to_selected_button.Disable()
