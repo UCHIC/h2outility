@@ -151,13 +151,10 @@ def GetTimeSeriesDataframe(series_service, series_list, site_id, qc_id, source_i
     q_list = []
     censor_list = []
 
-    if APP_SETTINGS.SKIP_QUERIES:
-        dataframe = None
-    else:
-        dataframe = series_service.get_values_by_filters(site_id, qc_id, source_id, methods, variables, year,
-                                                         starting_date=starting_date,
-                                                         chunk_size=APP_SETTINGS.QUERY_CHUNK_SIZE,
-                                                         timeout=APP_SETTINGS.DATAVALUES_TIMEOUT)
+    dataframe = series_service.get_values_by_filters(site_id, qc_id, source_id, methods, variables, year,
+                                                     starting_date=starting_date,
+                                                     chunk_size=APP_SETTINGS.QUERY_CHUNK_SIZE,
+                                                     timeout=APP_SETTINGS.DATAVALUES_TIMEOUT)
 
     variables_len = len(variables)
     methods_len = len(methods)
@@ -173,7 +170,7 @@ def GetTimeSeriesDataframe(series_service, series_list, site_id, qc_id, source_i
                                        columns=columns,
                                        values='DataValue',
                                        fill_value=series_list[0].variable.no_data_value)
-        del dataframe
+
 
     else:
         method = next(iter(methods))
@@ -187,8 +184,6 @@ def GetTimeSeriesDataframe(series_service, series_list, site_id, qc_id, source_i
 
         csv_table = dataframe.merge(q_df, how='left', on="QualifierID")  # type: pandas.DataFrame
 
-        del dataframe
-
         csv_table.set_index(["LocalDateTime", "UTCOffset", "DateTimeUTC"], inplace=True)
         for column in csv_table.columns.tolist():
 
@@ -199,6 +194,8 @@ def GetTimeSeriesDataframe(series_service, series_list, site_id, qc_id, source_i
 
         if 'CensorCode' in csv_table:
             censor_list = set(csv_table['CensorCode'].tolist())
+
+    del dataframe  # free up some space in memory I guess?
 
     return csv_table, q_list, censor_list  # don't ask questions... just let it happen
 
@@ -248,12 +245,19 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
                 base_name += '_{}'.format(year)
             file_name = base_name + '.csv'
 
+            """
+            This used to check if the file already existed on disk and
+            wouldn't upload the file if true. I commented this out
+            because it was causing inconsistent behaviour. Leaving it
+            here as a reference in case something pops up later.
+            """
             # if os.path.exists(file_name):
             #     csv_data = parseCSVData(file_name)
             #     csv_end_datetime = csv_data.localDateTime
             # else:
             #     csv_end_datetime = None
             csv_end_datetime = None
+
 
             stopwatch_timer = None
             if APP_SETTINGS.VERBOSE:
@@ -268,7 +272,14 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             if dataframe is not None:
                 if csv_end_datetime is None:
                     dataframe.sort_index(inplace=True)
-                    headers = BuildSeriesFileHeader(series_list, site, source, qualifier_codes, censorcodes)
+
+                    if year is not None:
+                        series = [s for s in series_list if s.begin_date_time.year == year]
+                    else:
+                        series = series_list
+
+                    headers = BuildSeriesFileHeader(series, site, source, qualifier_codes, censorcodes)
+
                     if WriteSeriesToFile(file_name, dataframe, headers):
                         return file_name
                     else:
@@ -328,7 +339,6 @@ def WriteSeriesToFile(csv_name, dataframe, headers):
         # Write data to CSV file
         print('Writing datasets to file: {}'.format(csv_name))
         file_out.write(headers)
-        import csv
         dataframe.to_csv(file_out)
         file_out.close()
     return True

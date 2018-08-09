@@ -70,10 +70,10 @@ class VisualH2OWindow(wx.Frame):
         h2o_subs = self._setup_h2o_subscriptions()
         self.H2OService = H2OService(subscriptions=h2o_subs)
 
-        self.odm_series_dict = {}  # type: dict{str, Series}
-        self.h2o_series_dict = {}  # type: dict{str, H2OSeries}
+        self.odm_series_dict = {}  # type: dict[str, Series]
+        self.h2o_series_dict = {}  # type: dict[str, H2OSeries]
 
-        self._resources = None  # type: dict{str, HydroShareResource}
+        self._resources = None  # type: dict[str, HydroShareResource]
         self.clean_resource = None
 
         # Widgets
