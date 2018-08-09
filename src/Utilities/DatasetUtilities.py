@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import datetime
 from multiprocessing import Process, Queue
 from time import sleep
@@ -243,7 +245,40 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             base_name += 'QC_{}_Source_{}'.format(qc.code, source.id)
             if year is not None:
                 base_name += '_{}'.format(year)
-            file_name = base_name + '.csv'
+
+            # Create a small hash to uniquely identify file names.
+            # If at least two series are selected that have the same site
+            # code, site name, variable name, variable code, QC code, and
+            # source description, but a *different method*, the file names
+            # will be exactly the same. When the "One series per file"
+            # checkbox is checked, this results in the undesired behavior
+            # that each time a series is written to file, it is immediately
+            # written over by the next series until the last series is
+            # written to file. Adding a hash to the end of the file names
+            # prevents this from happening.
+            #
+            # The hash is based on the method id(s) and method name(s)
+            # for consistent naming.
+
+            def generate_file_tag():  # type: () -> str
+                # create a hash by summing 'methods' and passing it
+                # into the built-in hash() method
+                method_id_sum = sum(methods)
+                num_hash = abs(hash(str(method_id_sum)))  # type: int
+
+                # Restrict 'num_hash' to 3 numbers
+                while num_hash > 1000:
+                    num_hash = num_hash / 10
+
+                # create a hash, but only keep the first 3 characters so the hash isn't enormous!
+                str_hash = hashlib.sha1(''.join([s.method_description for s in series_list]))
+                str_hash = base64.urlsafe_b64encode(str_hash.digest()[0:3])[0:3]
+
+                return '%s%d' % (str_hash, num_hash)
+
+            file_tag = generate_file_tag()
+
+            file_name = '%s.%s.csv' % (base_name, file_tag)
 
             """
             This used to check if the file already existed on disk and
@@ -270,6 +305,7 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
                 print('Query execution took {}'.format(datetime.datetime.now() - stopwatch_timer))
 
             if dataframe is not None:
+
                 if csv_end_datetime is None:
                     dataframe.sort_index(inplace=True)
 
@@ -285,16 +321,19 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
                     else:
                         print('Unable to write series to file {}'.format(file_name))
                         failed_files.append((file_name, 'Unable to write series to file'))
+
                 else:
                     if AppendSeriesToFile(file_name, dataframe):
                         return file_name
                     else:
                         print('Unable to append series to file {}'.format(file_name))
                         failed_files.append((file_name, 'Unable to append series to file'))
+
             elif APP_SETTINGS.SKIP_QUERIES:
                 headers = BuildSeriesFileHeader(series_list, site, source, qualifier_codes, censorcodes)
                 if WriteSeriesToFile(file_name, dataframe, headers):
                     return file_name
+
             elif dataframe is None and csv_end_datetime is not None:
                 print('File exists but there are no new data values to write')
                 # return file_name
