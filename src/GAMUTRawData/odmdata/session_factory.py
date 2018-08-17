@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 
 class SessionFactory():
@@ -13,7 +13,7 @@ class SessionFactory():
         # Create session maker
         self.Session = sessionmaker(bind=self.engine)
 
-    def get_session(self):
+    def get_session(self):  # type: () -> Session
         return self.Session()
 
     def __repr__(self):

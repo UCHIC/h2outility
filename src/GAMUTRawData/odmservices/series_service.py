@@ -11,8 +11,8 @@ logger = logging.getLogger('main')
 
 
 class TimeoutException(Exception):
-    def __init__(self, args):
-        super(TimeoutException, self).__init__(args)
+    def __init__(self, *args):
+        super(TimeoutException, self).__init__(*args)
 
 
 class SeriesService():
@@ -430,14 +430,15 @@ class SeriesService():
                                        DataValue.local_date_time > starting_date)
 
             query = q.statement.compile(dialect=self._session_factory.engine.dialect)
-            query_timer = threading.Timer(timeout, self.raise_timeout_exception)
-            query_timer.start()
-            result = None
-            for chunk in pandas.read_sql_query(sql=query, con=self._session_factory.engine, params=query.params,
-                                               coerce_float=True, chunksize=chunk_size):
-                result = chunk if result is None else pandas.concat([result, chunk], copy=False)
-            query_timer.cancel()
-            return result
+
+            return pandas.read_sql_query(query, self._session_factory.engine, params=query.params, coerce_float=True)
+
+            # result = None
+            # for chunk in pandas.read_sql_query(sql=query, con=self._session_factory.engine, params=query.params,
+            #                                    coerce_float=True, chunksize=chunk_size):
+            #     result = chunk if result is None else pandas.concat([result, chunk], copy=False)
+            #
+            # return result
         except MemoryError as e:
             print 'Memory Error encountered during query!!\nError: {}\n'.format(type(e), e)
         except TimeoutException as e:
@@ -496,7 +497,7 @@ class SeriesService():
             return None
 
     def raise_timeout_exception(self):
-        pass
+        raise TimeoutException('SQL Query took too long')
 
     def get_series_from_filter(self, site_id, variable_id, qc_level_id, source_id, method_id):
         try:

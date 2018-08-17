@@ -1,10 +1,13 @@
 import base64
 import hashlib
+from collections import defaultdict
 import datetime
 from multiprocessing import Process, Queue
 from time import sleep
 
-import pandas
+from wx.lib.pubsub import pub
+import pandas as pd
+from pandas import DataFrame
 
 from Common import *
 from GAMUTRawData.odmdata import QualityControlLevel, Series, Site, Source, Qualifier, Variable, Method
@@ -158,41 +161,41 @@ def GetTimeSeriesDataframe(series_service, series_list, site_id, qc_id, source_i
                                                      chunk_size=APP_SETTINGS.QUERY_CHUNK_SIZE,
                                                      timeout=APP_SETTINGS.DATAVALUES_TIMEOUT)
 
-    variables_len = len(variables)
-    methods_len = len(methods)
-
-    if variables_len < methods_len:
-        columns = ['MethodID', 'VariableCode']
-    else:
-        columns = 'VariableCode'
-
     if qc_id == 0 or len(variables) != 1 or len(methods) != 1:
-        csv_table = pandas.pivot_table(dataframe,
-                                       index=["LocalDateTime", "UTCOffset", "DateTimeUTC"],
-                                       columns=columns,
-                                       values='DataValue',
-                                       fill_value=series_list[0].variable.no_data_value)
 
+        csv_table = pd.pivot_table(dataframe,
+                                   index=["LocalDateTime", "UTCOffset", "DateTimeUTC"],
+                                   columns=['VariableCode', 'MethodID'],
+                                   values='DataValue')
+
+        nodata_values = {}
+        for series in series_list:
+            nodata_values[(series.variable_code, series.method_id)] = series.variable.no_data_value
+
+        csv_table.fillna(value=nodata_values, inplace=True)
 
     else:
         method = next(iter(methods))
         variable = next(iter(variables))
 
+        dataframe.fillna(value={'DataValue': series_list[0].variable.no_data_value}, inplace=True)
+
         q_list = [[q.id, q.code, q.description] for q in
                   series_service.get_qualifiers_by_series_details(site_id, qc_id, source_id, method, variable)]
 
         # Get the qualifiers that we use in this series, merge it with our DataValue set
-        q_df = pandas.DataFrame(data=q_list, columns=["QualifierID", "QualifierCode", "QualifierDescription"])
+        q_df = DataFrame(data=q_list, columns=["QualifierID", "QualifierCode", "QualifierDescription"])
 
-        csv_table = dataframe.merge(q_df, how='left', on="QualifierID")  # type: pandas.DataFrame
+        csv_table = dataframe.merge(q_df, how='left', on="QualifierID")  # type: DataFrame
 
         csv_table.set_index(["LocalDateTime", "UTCOffset", "DateTimeUTC"], inplace=True)
         for column in csv_table.columns.tolist():
 
-            if column not in ["DataValue", "CensorCode", "QualifierCode", 'VariableCode']:
-                csv_table.drop(column, axis=1, inplace=True)
+            if column not in ["DataValue", "CensorCode", "QualifierCode"]:
+                csv_table.drop(column, axis='columns', inplace=True)
 
-        csv_table.rename(columns={"DataValue": series_list[0].variable.code}, inplace=True)
+        colmapper = {'DataValue': (series_list[0].variable_code, series_list[0].method_id)}
+        csv_table.rename(columns=colmapper, inplace=True)
 
         if 'CensorCode' in csv_table:
             censor_list = set(csv_table['CensorCode'].tolist())
@@ -212,6 +215,7 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             print('Cannot generate a file for no series')
             return None
         variables = set([series.variable_id for series in series_list if series is not None])
+        variable_codes = set([series.variable_code for series in series_list if series is not None])
         methods = set([series.method_id for series in series_list if series is not None])
         qc_ids = set([series.quality_control_level_id for series in series_list if series is not None])
         site_ids = set([series.site_id for series in series_list if series is not None])
@@ -233,52 +237,30 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
                 site = Site(site_code=series_list[0].site_code, site_name=series_list[0].site_name)
 
 
-
             source = series_list[0].source  # type: Source
             qc = series_list[0].quality_control_level  # type: QualityControlLevel
             variables = list(variables)
+            variable_codes = list(variable_codes)
             methods = list(methods)
 
-            base_name = os.path.join(APP_SETTINGS.DATASET_DIR, '%s_' % site.code)
-            if len(variables) == 1:
-                base_name += '{}_'.format(series_list[0].variable_code)
-            base_name += 'QC_{}_Source_{}'.format(qc.code, source.id)
+
+            fname_components = ['SiteCode_%s' % site.code]
+
+            if len(variable_codes) == 1:
+                fname_components.append('VariableCode_%s' % variable_codes[0])
+
+            if len(methods) == 1:
+                fname_components.append('MethodID_%s' % methods[0])
+
+            fname_components.append('SourceID_%s' % source.id)
+            fname_components.append('QC_%s' % qc.code)
+
             if year is not None:
-                base_name += '_{}'.format(year)
+                fname_components.append('Year_%s' % year)
 
-            # Create a small hash to uniquely identify file names.
-            # If at least two series are selected that have the same site
-            # code, site name, variable name, variable code, QC code, and
-            # source description, but a *different method*, the file names
-            # will be exactly the same. When the "One series per file"
-            # checkbox is checked, this results in the undesired behavior
-            # that each time a series is written to file, it is immediately
-            # written over by the next series until the last series is
-            # written to file. Adding a hash to the end of the file names
-            # prevents this from happening.
-            #
-            # The hash is based on the method id(s) and method name(s)
-            # for consistent naming.
+            file_name = '%s.csv' % '_'.join(fname_components)
 
-            def generate_file_tag():  # type: () -> str
-                # create a hash by summing 'methods' and passing it
-                # into the built-in hash() method
-                method_id_sum = sum(methods)
-                num_hash = abs(hash(str(method_id_sum)))  # type: int
-
-                # Restrict 'num_hash' to 3 numbers
-                while num_hash > 1000:
-                    num_hash = num_hash / 10
-
-                # create a hash, but only keep the first 3 characters so the hash isn't enormous!
-                str_hash = hashlib.sha1(''.join([s.method_description for s in series_list]))
-                str_hash = base64.urlsafe_b64encode(str_hash.digest()[0:3])[0:3]
-
-                return '%s%d' % (str_hash, num_hash)
-
-            file_tag = generate_file_tag()
-
-            file_name = '%s.%s.csv' % (base_name, file_tag)
+            fpath = os.path.join(APP_SETTINGS.DATASET_DIR, file_name)
 
             """
             This used to check if the file already existed on disk and
@@ -286,8 +268,8 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             because it was causing inconsistent behaviour. Leaving it
             here as a reference in case something pops up later.
             """
-            # if os.path.exists(file_name):
-            #     csv_data = parseCSVData(file_name)
+            # if os.path.exists(fpath):
+            #     csv_data = parseCSVData(fpath)
             #     csv_end_datetime = csv_data.localDateTime
             # else:
             #     csv_end_datetime = None
@@ -297,7 +279,7 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             stopwatch_timer = None
             if APP_SETTINGS.VERBOSE:
                 stopwatch_timer = datetime.datetime.now()
-                print('Querying values for file {}'.format(file_name))
+                print('Querying values for file {}'.format(fpath))
 
             dataframe, qualifier_codes, censorcodes = GetTimeSeriesDataframe(series_service, series_list, site.id, qc.id, source.id, methods, variables, csv_end_datetime, year)
 
@@ -309,37 +291,73 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
                 if csv_end_datetime is None:
                     dataframe.sort_index(inplace=True)
 
-                    if year is not None:
-                        series = [s for s in series_list if s.begin_date_time.year == year]
-                    else:
-                        series = series_list
+                    # `varheaders` and `duplicatevarcounter` are used in `preheader_column_mapper()`
+                    # to determine which number to append to duplicate variable codes
+                    varheaders = [x[0] if not isinstance(x, str) else x for x in dataframe.columns]
+                    duplicatevarcounter = defaultdict(lambda: 0)
+                    for col in dataframe.columns:
+                        # look for variable codes that appear more than once in the columns
+                        # of `dataframe`, and add those to `duplicatevarcounter`
+                        try:
+                            var, _ = col
+                            if varheaders.count(var) > 1:
+                                duplicatevarcounter[var] += 1
+                        except ValueError:
+                            continue
 
-                    headers = BuildSeriesFileHeader(series, site, source, qualifier_codes, censorcodes)
+                    def preheader_column_mapper(col):
+                        """
+                        Used to rename columns of `dataframe`. Columns of `dataframe` are
+                        tuples in the form of `(<variable name>, <method ID>)`. Appends a
+                        number to duplicate variable codes in a sequential order.
 
-                    if WriteSeriesToFile(file_name, dataframe, headers):
-                        return file_name
+                        i.e., the columns: `[("Temp", 5), ("Temp", 6), ("DO", 9)]`
+                        become -> [("Temp-1", 5), ("Temp-2", 6), ("DO", 9)]`
+
+                        :param col: a column of `dataframe`
+                        :return: tuple(str, int)
+                        """
+                        try:
+                            var, methid = col
+                            if var in duplicatevarcounter:
+                                varheaders.pop(varheaders.index(var))
+                                dup_count = duplicatevarcounter.get(var) - varheaders.count(var)
+                                newvar = '%s-%s' % (var, dup_count)
+                                return newvar, methid
+                        except ValueError:
+                            # If one column name is a tuple, all column names must be tuples
+                            return col, None
+
+                        return col
+
+                    # call set_axis to rename duplicate column names
+                    dataframe.set_axis('columns', dataframe.columns.map(preheader_column_mapper))
+
+                    # build the headers
+                    headers = BuildSeriesFileHeader(series_list, site, source, qualifier_codes, censorcodes, dataframe=dataframe)
+
+                    # call set_axis again to remove multi-level column names and get the expected CSV output
+                    dataframe.set_axis('columns', dataframe.columns.map(lambda x: x[0] if len(x) > 1 else x))  #
+
+                    if WriteSeriesToFile(fpath, dataframe, headers):
+                        return fpath
                     else:
-                        print('Unable to write series to file {}'.format(file_name))
-                        failed_files.append((file_name, 'Unable to write series to file'))
+                        print('Unable to write series to file {}'.format(fpath))
+                        failed_files.append((fpath, 'Unable to write series to file'))
 
                 else:
-                    if AppendSeriesToFile(file_name, dataframe):
-                        return file_name
+                    if AppendSeriesToFile(fpath, dataframe):
+                        return fpath
                     else:
-                        print('Unable to append series to file {}'.format(file_name))
-                        failed_files.append((file_name, 'Unable to append series to file'))
-
-            elif APP_SETTINGS.SKIP_QUERIES:
-                headers = BuildSeriesFileHeader(series_list, site, source, qualifier_codes, censorcodes)
-                if WriteSeriesToFile(file_name, dataframe, headers):
-                    return file_name
+                        print('Unable to append series to file {}'.format(fpath))
+                        failed_files.append((fpath, 'Unable to append series to file'))
 
             elif dataframe is None and csv_end_datetime is not None:
                 print('File exists but there are no new data values to write')
-                # return file_name
+                # return fpath
             else:
                 print('No data values exist for this dataset')
-                failed_files.append((file_name, 'No data values found for file'))
+                failed_files.append((fpath, 'No data values found for file'))
     except TypeError as e:
         print('Exception encountered while building a csv file: {}'.format(e))
     return None
@@ -354,7 +372,9 @@ def AppendSeriesToFile(csv_name, dataframe):
         return True
     try:
         file_out = open(csv_name, 'a')
-        print('Writing datasets to file: {}'.format(csv_name))
+        message = 'Writing datasets to file: {}'.format(csv_name)
+        print(message)
+        pub.sendMessage('logger', message=message)
         dataframe.to_csv(file_out, header=None)
         file_out.close()
     except Exception as e:
@@ -369,6 +389,7 @@ def WriteSeriesToFile(csv_name, dataframe, headers):
         return False
     elif dataframe is None and APP_SETTINGS.SKIP_QUERIES:
         print('Writing test datasets to file: {}'.format(csv_name))
+
         return True
     file_out = createFile(csv_name)
     if file_out is None:
@@ -377,6 +398,7 @@ def WriteSeriesToFile(csv_name, dataframe, headers):
     else:
         # Write data to CSV file
         print('Writing datasets to file: {}'.format(csv_name))
+        pub.sendMessage('logger', message='Creating dataset file: %s' % os.path.basename(csv_name))
         file_out.write(headers)
         dataframe.to_csv(file_out)
         file_out.close()
@@ -394,7 +416,17 @@ def GetSeriesYearRange(series_list):
     return range(start_date.year, end_date.year + 1)
 
 
-def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=None, censorcodes=None):
+def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=None, censorcodes=None, dataframe=None):
+    """
+    Creates a file header for CSV files
+
+    :param series_list:
+    :param site:
+    :param source:
+    :param qualifier_codes:
+    :param censorcodes:
+    :return: a tuple containing the header and a list of the column names for a dataframe
+    """
 
     if qualifier_codes is None:
         qualifier_codes = list()
@@ -408,8 +440,17 @@ def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=None, censo
         var_data = ExpandedVariableData(series_list[0].variable, series_list[0].method)
     else:
         var_data = CompactVariableData()
-        for series in series_list:
-            var_data.variable_method_data.append((series.variable, series.method))
+
+        mapped = []  # [(column_name, series), ...]
+        for column in dataframe.columns:
+            colname, methid = column
+            for series in series_list:
+                if series.method_id == methid:
+                    mapped.append((colname, series))
+                    continue
+
+        for colname, series in mapped:
+            var_data.variable_method_data.append((colname, series.variable, series.method))
 
     source_info = SourceInfo()
     source_info.setSourceInfo(source.organization, source.description, source.link, source.contact_name, source.phone,
@@ -422,6 +463,27 @@ def BuildSeriesFileHeader(series_list, site, source, qualifier_codes=None, censo
     header += generateQualifierCodes(qualifier_codes) + '#\n'
 
     return header
+
+
+def generate_column_names(series_list):  # type: (any) -> [str]
+    """
+    Looks for duplicate variable codes and appends a number if collisions exist.
+
+    Example:
+        codes = clean_variable_codes(['foo', 'bar', 'foo'])
+        print(codes)
+        # ['foo-1', 'bar', 'foo-2']
+    """
+    varcodes = [s.variable_code for s in series_list]
+    for varcode in varcodes:
+        count = varcodes.count(varcode)
+        if count > 1:
+            counter = 1
+            for i in range(0, len(varcodes)):
+                if varcodes[i] == varcode:
+                    varcodes[i] = '%s-%s' % (varcode, counter)
+                    counter += 1
+    return varcodes
 
 
 def generateSiteInformation(site):
@@ -633,7 +695,7 @@ class CompactVariableData(VariableFormatter):
 
         rows = []
 
-        for variable, method in self.variable_method_data:
+        for column_name, variable, method in self.variable_method_data:
 
             definitions = []
 
@@ -642,6 +704,7 @@ class CompactVariableData(VariableFormatter):
             else:
                 tempVarMethodLink = method.link if method.link[-1:].isalnum() else method.link[-1:]
 
+            definitions.append(self.formatHelper("Column", column_name))
             definitions.append(self.formatHelper("VariableCode", variable.code))
             definitions.append(self.formatHelper("VariableName", variable.name))
             definitions.append(self.formatHelper("MethodID", method.id))
@@ -664,7 +727,7 @@ class CompactVariableData(VariableFormatter):
 
         definitions = "\n".join(['"# %s"' % ' | '.join(row) for row in rows])
 
-        return '%s%s' % (header, definitions)
+        return '%s%s\n' % (header, definitions)
 
     def formatHelper(self, title, var):
         if isinstance(title, unicode):
