@@ -374,12 +374,6 @@ class VisualH2OWindow(wx.Frame):
                 self.on_log_print('Failed to connect to database: {}'.format(e))
                 return
 
-            # TODO: Remove this filtering garbage
-            # series_list = filter(lambda s: s.id in [396, 397, 399, 400, 403, 404, 406, 407, 408, 409], series_list)
-            # series_list = filter(lambda s: s.quality_control_level_code == u'1', series_list)
-            # series_list = filter(lambda s: s.begin_date_time.year != s.end_date_time.year, series_list)
-            # series_list = filter(lambda s: s.id in [1, 2, 3, 5, 8, 9], series_list)
-
             for series in series_list:
                 self.h2o_series_dict[series.id] = OdmSeriesHelper.CreateH2OSeriesFromOdmSeries(series)
                 self.odm_series_dict[series.id] = series

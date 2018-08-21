@@ -244,10 +244,10 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             methods = list(methods)
 
 
-            fname_components = ['SiteCode_%s' % site.code]
+            fname_components = [site.code]
 
             if len(variable_codes) == 1:
-                fname_components.append('VariableCode_%s' % variable_codes[0])
+                fname_components.append(variable_codes[0])
 
             if len(methods) == 1:
                 fname_components.append('MethodID_%s' % methods[0])
