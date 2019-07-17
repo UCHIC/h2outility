@@ -36,7 +36,7 @@ mccabe==0.6.1
 networkx==1.11
 numpy==1.12.1
 oauthlib==2.0.2
-odm2api==0.5.2
+odm2api
 packaging==16.8
 pandas==0.19.2
 path.py==10.3.1
@@ -49,7 +49,7 @@ pub==0.0.4
 pycodestyle==2.3.1
 PyInstaller==3.2.1
 pylint==1.6.5
-pylog==0.2.0
+pylog
 pyodbc==4.0.16
 pyparsing==2.2.0
 pypiwin32==219
@@ -67,7 +67,7 @@ SQLAlchemy==1.1.9
 stripe==1.33.0
 traitlets==4.2.1
 typing==3.6.1
-update==0.4.4
+update
 virtualenv==15.1.0
 Werkzeug==0.11.9
 wrapt==1.10.10

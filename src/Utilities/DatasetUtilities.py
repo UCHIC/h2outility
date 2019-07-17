@@ -249,8 +249,9 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
             if len(variable_codes) == 1:
                 fname_components.append(variable_codes[0])
 
-            if len(methods) == 1:
-                fname_components.append('MethodID_%s' % methods[0])
+            # not sure why it was writing the method id in the file name. leaving it here just in case.
+            # if len(methods) == 1:
+            #     fname_components.append('MethodID_%s' % methods[0])
 
             fname_components.append('SourceID_%s' % source.id)
             fname_components.append('QC_%s' % qc.code)
