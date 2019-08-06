@@ -412,6 +412,9 @@ class VisualH2OWindow(wx.Frame):
             self.set_odm_connection(None)
             self.reset_series_in_grid()
 
+    def on_save_configuration_clicked(self, event):
+        self._save_managed_clicked(event)
+
     def set_hydroshare_connection(self, account_name):
         wait = wx.BusyCursor()
 
@@ -457,6 +460,30 @@ class VisualH2OWindow(wx.Frame):
         self.available_series_grid.InsertSeriesList(self.odm_series_dict.values())
         self.remove_selected_button.Enable()
         self.add_to_selected_button.Enable()
+
+    def reset_series_grid_with_resource(self, resource, event=None):
+        selected_series = []
+        available_series = []
+
+        if self.odm_series_dict is None or len(self.odm_series_dict) == 0:
+            self.remove_selected_button.Disable()
+            self.add_to_selected_button.Disable()
+            return
+
+        selected_series_ids = [int(series_id) for series_id in resource.selected_series.keys()]
+        for series in self.odm_series_dict.values():
+            if series.id in selected_series_ids:
+                selected_series.append(series)
+            else:
+                available_series.append(series)
+
+        self.available_series_grid.Clear()
+        self.selected_series_grid.Clear()
+        self.available_series_grid.InsertSeriesList(available_series, do_sort=True)
+        self.selected_series_grid.InsertSeriesList(selected_series, do_sort=True)
+        self.remove_selected_button.Enable()
+        self.add_to_selected_button.Enable()
+
 
     def _move_to_selected_series(self, event):
         series_list = [self.odm_series_dict[series_id] for series_id in self.available_series_grid.GetSelectedSeries()]
@@ -626,11 +653,20 @@ class VisualH2OWindow(wx.Frame):
         managed_resources = data.get('managed_resources', {})
         mngd_resource = managed_resources.get(self._get_selected_resource().id, None)  # type: H2OManagedResource
 
-        for rid, resource in self.H2OService.ManagedResources.iteritems():  # type: str, H2OManagedResource
-            if resource.resource_id != mngd_resource.resource_id:
-                self.H2OService.ManagedResources[rid].selected_series = {}
-            else:
-                self.H2OService.ManagedResources[rid].selected_series = self.get_selected_series()
+        self.H2OService.ManagedResources[mngd_resource.resource_id].selected_series = self.get_selected_series()
+
+        #
+        # for rid, resource in self.H2OService.ManagedResources.iteritems():  # type: str, H2OManagedResource
+        #
+        #     if resource.resource_id == mngd_resource.resource_id:
+        #         self.H2OService.ManagedResources[rid].selected_series = self.get_selected_series()
+        #     WHYYYYYYY
+        #     if resource.resource_id != mngd_resource.resource_id:
+        #         # TODO: check here. i don't think this is supposed to clear this dict.
+        #         # WHY?????
+        #         self.H2OService.ManagedResources[rid].selected_series = {}
+        #     else:
+        #         self.H2OService.ManagedResources[rid].selected_series = self.get_selected_series()
 
         if mngd_resource and len(mngd_resource.selected_series):
             # Only run if the managed resource has selected series
@@ -661,7 +697,7 @@ class VisualH2OWindow(wx.Frame):
         managed_resource = None
         if isinstance(resource, H2OManagedResource):
             managed_resource = resource
-            resource = resource.resource
+            resource = managed_resource.resource
 
         # 'self.clean_resource' is used to keep track the state of the 'resource'
         self.clean_resource = copy.copy(resource)
@@ -671,7 +707,7 @@ class VisualH2OWindow(wx.Frame):
 
         self.populate_resource_fields(resource)
         self.reset_series_in_grid()
-        self.save_resource_to_managed_resources(resource)
+        self.save_resource_to_managed_resources(resource, series=managed_resource and managed_resource.selected_series)
 
         self.on_log_print('Fetching information for resource {}'.format(resource.title))
 
@@ -680,8 +716,7 @@ class VisualH2OWindow(wx.Frame):
             if managed_resource.odm_db_name in self.H2OService.DatabaseConnections:
                 self.database_connection_choice.SetStringSelection(managed_resource.odm_db_name)
                 self.set_odm_connection(self.H2OService.DatabaseConnections[managed_resource.odm_db_name])
-
-                self.reset_series_in_grid()
+                self.reset_series_grid_with_resource(managed_resource)
 
                 self.chunk_by_series_checkbox.SetValue(wx.CHK_CHECKED if not managed_resource.single_file else wx.CHK_UNCHECKED)
                 self.chunk_by_year_checkbox.Value = managed_resource.chunk_years
@@ -692,6 +727,12 @@ class VisualH2OWindow(wx.Frame):
                     self.on_log_print('Error loading ODM series: Unknown connection "{}"'.format(managed_resource.odm_db_name))
 
         self.on_change_keywords_input()
+
+    def show_resource_series_selection(self, managed_resource):
+        if not managed_resource.selected_series:
+            return
+        series_ids = managed_resource.selected_series.keys()
+
 
     def _change_resource(self, event):
 
@@ -932,6 +973,7 @@ class VisualH2OWindow(wx.Frame):
         """
         Build action sizer and logging box
         """
+        self.save_configuration_button = WxHelper.GetButton(self, self.panel, "Save Configuration", self.on_save_configuration_clicked)
         self.run_script_button = WxHelper.GetButton(self, self.panel, "Upload Series", self.on_click_upload_series)
         self.stop_script_button = WxHelper.GetButton(self, self.panel, "Cancel", self.on_stop_script_clicked)
         self.stop_script_button.Enable(enable=False)
@@ -947,9 +989,10 @@ class VisualH2OWindow(wx.Frame):
         self.clear_console_button = WxHelper.GetButton(self, self.panel, "Clear Console",
                                                        lambda ev: self.log_message_listbox.Clear())
 
-        action_status_sizer.Add(self.status_gauge, pos=(0, 0), span=(1, 8), flag=ALIGN.CENTER)
+        action_status_sizer.Add(self.status_gauge, pos=(0, 0), span=(1, 7), flag=ALIGN.CENTER)
         action_status_sizer.Add(self.stop_script_button, pos=(0, 9), span=(1, 1), flag=ALIGN.CENTER)
-        action_status_sizer.Add(self.run_script_button, pos=(0, 8), span=(1, 1), flag=ALIGN.CENTER)
+        action_status_sizer.Add(self.save_configuration_button, pos=(0, 8), span=(1, 1), flag=ALIGN.CENTER)
+        action_status_sizer.Add(self.run_script_button, pos=(0, 7), span=(1, 1), flag=ALIGN.CENTER)
         action_status_sizer.Add(self.log_message_listbox, pos=(1, 0), span=(2, 10), flag=ALIGN.CENTER)
         action_status_sizer.Add(self.clear_console_button, pos=(3, 0), span=(1, 1), flag=ALIGN.CENTER)
 
@@ -957,6 +1000,7 @@ class VisualH2OWindow(wx.Frame):
             edit_database_button,
             self.add_to_selected_button,
             self.remove_selected_button,
+            self.save_configuration_button,
             self.run_script_button,
             self.stop_script_button
         ],
