@@ -356,7 +356,7 @@ class VisualH2OWindow(wx.Frame):
         if connection is None:
             self.h2o_series_dict.clear()
             self.odm_series_dict.clear()
-            self.odmSeriesUIController.DisableGrids()
+            self.odmSerisingle_fileesUIController.DisableGrids()
             return
 
         wait = wx.BusyCursor()
@@ -563,15 +563,6 @@ class VisualH2OWindow(wx.Frame):
         resource = self._get_selected_resource()
         mngd_res = self.H2OService.ManagedResources.get(resource.id, None)
 
-        if not self._verify_dataset_selections():
-            if len(self.selected_series_grid.GetSeries()):
-                self.on_log_print('"Selected Series" box is empty. Please add one or more series to "Selected Series" to apply changes.')
-            else:
-                self.on_log_print(
-                    'You must add series to "Selected Series" box and click "{}" before you can apply changes.'.format(
-                        self.run_script_button.GetLabel()))
-            return
-
         wait = wx.BusyCursor()
 
         series = {}
@@ -677,6 +668,19 @@ class VisualH2OWindow(wx.Frame):
                 self.H2OService.StartSeriesFileUpload(mngd_resource)
             except Exception as e:
                 self.on_log_print(e.message)
+        else:
+            # copied over from _save_managed_clicked.
+            # removed this verification from there cause i needed to be able to just save the current configuration
+            # to save the configuration it shouldn't be required that some series have been selected
+            if not self._verify_dataset_selections():
+                if len(self.selected_series_grid.GetSeries()):
+                    self.on_log_print(
+                        '"Selected Series" box is empty. Please add one or more series to "Selected Series" to apply changes.')
+                else:
+                    self.on_log_print(
+                        'You must add series to "Selected Series" box and click "{}" before you can apply changes.'.format(
+                            self.run_script_button.GetLabel()))
+                return
 
     def on_stop_script_clicked(self, event):
         self.on_log_print('Stopping the script... this may take a while.')
@@ -707,6 +711,9 @@ class VisualH2OWindow(wx.Frame):
 
         self.populate_resource_fields(resource)
         self.reset_series_in_grid()
+        # reflect actual managed resource config on gui before that save_resource_to_managed_resources call below.
+        self.refresh_file_options(managed_resource)
+
         self.save_resource_to_managed_resources(resource, series=managed_resource and managed_resource.selected_series)
 
         self.on_log_print('Fetching information for resource {}'.format(resource.title))
@@ -718,8 +725,8 @@ class VisualH2OWindow(wx.Frame):
                 self.set_odm_connection(self.H2OService.DatabaseConnections[managed_resource.odm_db_name])
                 self.reset_series_grid_with_resource(managed_resource)
 
-                self.chunk_by_series_checkbox.SetValue(wx.CHK_CHECKED if not managed_resource.single_file else wx.CHK_UNCHECKED)
-                self.chunk_by_year_checkbox.Value = managed_resource.chunk_years
+                # self.chunk_by_series_checkbox.SetValue(wx.CHK_CHECKED if not managed_resource.single_file else wx.CHK_UNCHECKED)
+                # self.chunk_by_year_checkbox.Value = managed_resource.chunk_years
 
             else:
 
@@ -732,6 +739,18 @@ class VisualH2OWindow(wx.Frame):
         if not managed_resource.selected_series:
             return
         series_ids = managed_resource.selected_series.keys()
+
+    def refresh_file_options(self, managed_resource):
+        if not managed_resource:
+            # clear checkboxes if resource isn't managed yet and there's no file options
+            self.chunk_by_series_checkbox.SetValue(wx.CHK_UNCHECKED)
+            self.chunk_by_year_checkbox.SetValue(wx.CHK_UNCHECKED)
+            return
+
+        # update checkboxes with managed resource file options.
+        self.chunk_by_series_checkbox.SetValue(wx.CHK_CHECKED if not managed_resource.single_file else wx.CHK_UNCHECKED)
+        self.chunk_by_year_checkbox.SetValue(wx.CHK_CHECKED if managed_resource.chunk_years else wx.CHK_UNCHECKED)
+
 
 
     def _change_resource(self, event):
@@ -746,7 +765,7 @@ class VisualH2OWindow(wx.Frame):
             result = self.on_edit_resource_templates_clicked(None, create_resource=True)
 
             if result == 0:
-                self.populate_resource_fields(None)
+                self.populate_resource_fields()
                 self.reset_series_in_grid()
 
         else:
