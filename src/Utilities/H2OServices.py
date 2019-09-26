@@ -195,8 +195,6 @@ class H2OService:
 
                     self.NotifyVisualH2O('Dataset_Generated', rsrc.resource.title, current_dataset, dataset_count)
 
-                    return dataset_count
-
                 except H2OService.StopThreadException as e:
                     print('Dataset generation stopped: {}'.format(e))
                     return 0
@@ -206,8 +204,8 @@ class H2OService:
                     return 0
 
         print('Dataset generation completed without error')
-
         self.NotifyVisualH2O('Datasets_Completed', current_dataset, dataset_count)
+        return current_dataset
 
     def _upload_files(self, resource=None):
         dataset_count = len(self.ManagedResources)
