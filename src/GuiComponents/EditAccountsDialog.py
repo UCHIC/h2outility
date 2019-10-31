@@ -5,7 +5,7 @@
 import wx
 import wx.xrc
 from Utilities.HydroShareUtility import HydroShareAccountDetails, HydroShareUtility
-from wx.lib.pubsub import pub
+from pubsub import pub
 # from pubsub import pub
 from InputValidator import *
 

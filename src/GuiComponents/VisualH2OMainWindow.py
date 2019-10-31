@@ -6,7 +6,7 @@ import copy
 import wx.dataview
 import wx.grid
 
-from wx.lib.pubsub import pub
+from pubsub import pub
 
 from hs_restclient import HydroShareException, HydroShareNotFound
 

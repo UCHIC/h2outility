@@ -5,7 +5,7 @@ import datetime
 from multiprocessing import Process, Queue
 from time import sleep
 
-from wx.lib.pubsub import pub
+from pubsub import pub
 import pandas as pd
 from pandas import DataFrame
 

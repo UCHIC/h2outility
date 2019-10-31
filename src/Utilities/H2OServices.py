@@ -4,7 +4,7 @@ from threading import Thread
 
 import jsonpickle
 import sys
-from wx.lib.pubsub import pub
+from pubsub import pub
 # from pubsub import pub
 
 from GAMUTRawData.odmservices import ServiceManager

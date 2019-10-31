@@ -8,7 +8,7 @@ import dateutil.parser
 from hs_restclient import HydroShareNotFound, HydroShareAuthBasic, HydroShareAuthOAuth2, HydroShare, HydroShareException
 from oauthlib.oauth2 import InvalidClientError, InvalidGrantError
 
-from wx.lib.pubsub import pub
+from pubsub import pub
 from Common import APP_SETTINGS
 from Utilities.DatasetUtilities import H2OManagedResource
 
