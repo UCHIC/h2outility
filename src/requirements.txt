@@ -69,6 +69,6 @@ traitlets==4.2.1
 typing==3.6.1
 update==0.4.4
 virtualenv==15.1.0
-Werkzeug==0.11.9
+Werkzeug==0.15.3
 wrapt==1.10.10
 wxPython==4.0.0b2
