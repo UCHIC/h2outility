@@ -529,7 +529,7 @@ def generateQualifierCodes(codes):  # type: ([(int, str, str)]) -> str
 
     for code in codes:
         _, abrv, definition = code
-        header += '# %s: %s\n' % (abrv, definition)
+        header += str('# %s: %s\n' % (abrv, definition))
 
     return header + '#\n'
 
