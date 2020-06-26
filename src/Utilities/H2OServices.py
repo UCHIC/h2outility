@@ -125,7 +125,6 @@ class H2OService:
 
                 database_resource_dict[rsrc.odm_db_name].append(rsrc)
 
-
         for db_dame in database_resource_dict.keys():
             self._thread_checkpoint()
 
@@ -402,6 +401,7 @@ class H2OService:
         print('Creating resource {}'.format(template))
 
         return self.ActiveHydroshare.createNewResource(template)
+
 
 class H2OLogger:
     def __init__(self, logfile_dir=None, log_to_gui=False):

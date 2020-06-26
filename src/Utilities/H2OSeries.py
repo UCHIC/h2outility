@@ -8,7 +8,7 @@ __title__ = 'H2OSeries'
 class H2OSeries:
     def __init__(self, SeriesID=None, SiteID=None, SiteCode=None, VariableID=None, VariableCode=None, MethodID=None,
                  SourceID=None, QualityControlLevelID=None, QualityControlLevelCode=None):
-        self.SeriesID = SeriesID if SeriesID is not None else -1  # type: int
+        self.SeriesID = SeriesID if SeriesID is not None else ""  # type: str
         self.SiteID = SiteID if SiteID is not None else -1  # type: int
         self.SiteCode = SiteCode if SiteCode is not None else ""  # type: str
         self.VariableID = VariableID if VariableID is not None else -1  # type: int
@@ -18,6 +18,11 @@ class H2OSeries:
         self.QualityControlLevelID = QualityControlLevelID if QualityControlLevelID is not None else -1  # type: int
         self.QualityControlLevelCode = QualityControlLevelCode if QualityControlLevelCode is not None else -1  #
         # type: float
+
+    def get_odm_id(self):
+        return '{}_{}_{}_{}_{}'.format(self.SiteID, self.VariableID, self.MethodID,
+                                       self.SourceID, self.QualityControlLevelID)
+    odm_id = property(get_odm_id)
 
     def __hash__(self):
         return hash((self.SiteCode, self.VariableCode, self.MethodID, self.SourceID, self.QualityControlLevelCode))
@@ -94,7 +99,7 @@ class OdmSeriesHelper:
         if series is None:
             return None
         else:
-            return H2OSeries(SeriesID=series.id, SiteID=series.site_id, VariableID=series.variable_id,
+            return H2OSeries(SeriesID=series.odm_id, SiteID=series.site_id, VariableID=series.variable_id,
                              MethodID=series.method_id, SourceID=series.source_id, VariableCode=series.variable_code,
                              QualityControlLevelID=series.quality_control_level_id, SiteCode=series.site_code,
                              QualityControlLevelCode=series.quality_control_level_code)

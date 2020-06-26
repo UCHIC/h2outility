@@ -2,6 +2,7 @@ from collections import OrderedDict  # Requires Python 2.7 >=
 
 from sqlalchemy import Column, Integer, ForeignKey, String, Float, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from base import Base
 from site import Site
@@ -95,19 +96,24 @@ class Series(Base):
     source = relationship(Source)
     quality_control_level = relationship(QualityControlLevel)
 
+    @hybrid_property
+    def odm_id(self):
+        return '{}_{}_{}_{}_{}'.format(self.site_id, self.variable_id, self.method_id,
+                                       self.source_id, self.quality_control_level_id)
+
     def __repr__(self):
         return "<Series('%s', '%s', '%s', '%s')>" % (self.id, self.site_name, self.variable_code, self.variable_name)
 
     def __eq__(self, other):
         # return self.__dict__ == other.__dict__
-        return [self.id, self.site_id, self.site_code, self.site_name, self.variable_id, self.variable_code,
+        return [self.site_id, self.site_code, self.site_name, self.variable_id, self.variable_code,
                 self.variable_name, self.speciation, self.variable_units_id, self.variable_units_name,
                 self.sample_medium, self.value_type, self.time_support, self.time_units_id, self.time_units_name,
                 self.data_type, self.general_category, self.method_id, self.method_description,
                 self.source_id, self.source_description, self.organization, self.citation,
                 self.quality_control_level_id, self.quality_control_level_code, self.begin_date_time,
                 self.end_date_time, self.begin_date_time_utc, self.end_date_time_utc, self.value_count] == \
-               [other.id, other.site_id, other.site_code, other.site_name, other.variable_id, other.variable_code,
+               [other.site_id, other.site_code, other.site_name, other.variable_id, other.variable_code,
                 other.variable_name, other.speciation, other.variable_units_id, other.variable_units_name,
                 other.sample_medium, other.value_type, other.time_support, other.time_units_id, other.time_units_name,
                 other.data_type, other.general_category, other.method_id, other.method_description,
@@ -122,7 +128,7 @@ class Series(Base):
         return self.__table__.columns.keys()
 
     def list_repr(self):
-        return [self.id, self.site_id, self.site_code, self.site_name, self.variable_id, self.variable_code,
+        return [self.site_id, self.site_code, self.site_name, self.variable_id, self.variable_code,
                 self.variable_name, self.speciation, self.variable_units_id, self.variable_units_name,
                 self.sample_medium, self.value_type, self.time_support, self.time_units_id, self.time_units_name,
                 self.data_type, self.general_category, self.method_id, self.method_description,
@@ -131,14 +137,14 @@ class Series(Base):
                 self.end_date_time, self.begin_date_time_utc, self.end_date_time_utc, self.value_count]
 
     def dict_repr(self):
-        keys = ['SeriesID', 'SiteID', 'SiteCode', 'SiteName', 'VariableID', 'VariableCode', 'VariableName',
+        keys = ['SiteID', 'SiteCode', 'SiteName', 'VariableID', 'VariableCode', 'VariableName',
                 'Speciation',
                 'VariableUnitsID', 'VariableUnitsName', 'SampleMedium', 'ValueType', 'TimeSupport', 'TimeUnitsID',
                 'TimeUnitsName', 'DataType', 'GeneralCategory', 'MethodID', 'MethodDescription', 'SourceID',
                 'SourceDescription', 'Organization', 'Citation', 'QualityControlLevelID', 'QualityControlLevelCode',
                 'BeginDateTime', 'EndDateTime', 'BeginDateTimeUTC', 'EndDateTimeUTC', 'ValueCount'
                 ]
-        values = [self.id, self.site_id, self.site_code, self.site_name, self.variable_id, self.variable_code,
+        values = [self.site_id, self.site_code, self.site_name, self.variable_id, self.variable_code,
                  self.variable_name, self.speciation, self.variable_units_id, self.variable_units_name,
                  self.sample_medium, self.value_type, self.time_support, self.time_units_id, self.time_units_name,
                  self.data_type, self.general_category, self.method_id, self.method_description,
@@ -146,6 +152,7 @@ class Series(Base):
                  self.quality_control_level_id, self.quality_control_level_code, self.begin_date_time,
                  self.end_date_time, self.begin_date_time_utc, self.end_date_time_utc, self.value_count]
         return OrderedDict(zip(keys, values))
+
 
 def returnDict():
     keys = ['SeriesID', 'SiteID', 'SiteCode', 'SiteName', 'VariableID', 'VariableCode', 'VariableName', 'Speciation',

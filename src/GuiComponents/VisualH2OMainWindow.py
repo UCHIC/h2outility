@@ -312,8 +312,8 @@ class VisualH2OWindow(wx.Frame):
                                  in self.H2OService.ManagedResources.iteritems() if resource.resource is not None]
             unmanaged_resources = [CHOICE_DEFAULTS.RESOURCE_STR.format(resource.title, hs_id) for hs_id, resource in
                                    self._resources.iteritems() if hs_id not in self.H2OService.ManagedResources]
-            managed_resources.sort(reverse=self.invert_resource_choices_checkbox.IsChecked())
-            unmanaged_resources.sort(reverse=self.invert_resource_choices_checkbox.IsChecked())
+            managed_resources.sort(reverse=(not self.invert_resource_choices_checkbox.IsChecked()))
+            unmanaged_resources.sort(reverse=(not self.invert_resource_choices_checkbox.IsChecked()))
 
             choices = [CHOICE_DEFAULTS.CREATE_NEW_RESOURCE,
                        CHOICE_DEFAULTS.MANAGED_RESOURCES.format(len(managed_resources),
@@ -375,8 +375,8 @@ class VisualH2OWindow(wx.Frame):
                 return
 
             for series in series_list:
-                self.h2o_series_dict[series.id] = OdmSeriesHelper.CreateH2OSeriesFromOdmSeries(series)
-                self.odm_series_dict[series.id] = series
+                self.h2o_series_dict[series.odm_id] = OdmSeriesHelper.CreateH2OSeriesFromOdmSeries(series)
+                self.odm_series_dict[series.odm_id] = series
             self.reset_series_in_grid()
 
             # Re-enable controls for ODM series UI elements
@@ -470,9 +470,9 @@ class VisualH2OWindow(wx.Frame):
             self.add_to_selected_button.Disable()
             return
 
-        selected_series_ids = [int(series_id) for series_id in resource.selected_series.keys()]
+        selected_series_ids = [series_odm_id for series_odm_id in resource.selected_series.keys()]
         for series in self.odm_series_dict.values():
-            if series.id in selected_series_ids:
+            if series.odm_id in selected_series_ids:
                 selected_series.append(series)
             else:
                 available_series.append(series)
@@ -484,9 +484,8 @@ class VisualH2OWindow(wx.Frame):
         self.remove_selected_button.Enable()
         self.add_to_selected_button.Enable()
 
-
     def _move_to_selected_series(self, event):
-        series_list = [self.odm_series_dict[series_id] for series_id in self.available_series_grid.GetSelectedSeries()]
+        series_list = [self.odm_series_dict[series_odm_id] for series_odm_id in self.available_series_grid.GetSelectedSeries()]
         self.selected_series_grid.InsertSeriesList(series_list, do_sort=True)
         self.available_series_grid.RemoveSelectedRows()
 
@@ -495,7 +494,7 @@ class VisualH2OWindow(wx.Frame):
             mngres.selected_series = self.get_selected_series()
 
     def _move_to_available_series(self, event):
-        series_list = [self.odm_series_dict[series_id] for series_id in self.selected_series_grid.GetSelectedSeries()]
+        series_list = [self.odm_series_dict[series_omd_id] for series_omd_id in self.selected_series_grid.GetSelectedSeries()]
         self.available_series_grid.InsertSeriesList(series_list, do_sort=True)
         self.selected_series_grid.RemoveSelectedRows()
 

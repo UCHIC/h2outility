@@ -141,7 +141,7 @@ class WxHelper:
             self.SetRowValue(row_pos, values)
 
         def AppendSeries(self, series):
-            values = [series.id, series.site_code, series.site_name, series.variable_name,
+            values = [series.odm_id, series.site_code, series.site_name, series.variable_name,
                       series.variable_code, series.quality_control_level_code,
                       series.source_description, series.method_description]
             self.AddGridRow(values)
@@ -163,12 +163,12 @@ class WxHelper:
                     self.DeleteRows(i)
 
         def GetSelectedSeries(self):
-            return [int(self.GetCellValue(row, 0)) for row in self.GetSelectedRows()]
+            return [self.GetCellValue(row, 0) for row in self.GetSelectedRows()]
 
         def GetSeries(self):
             series = []
             for row in range(0, self.NumberRows):
-                series.append(int(self.GetCellValue(row, 0)))
+                series.append(self.GetCellValue(row, 0))
             return series
 
         def Clear(self):
