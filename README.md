@@ -1,10 +1,12 @@
 # H2O Utility #
 
-A GUI-based and optionally headless tool to select times series values from a HydroServer, write the data to CSV files, and upload them to their respective HydroShare resources. The VisualUpdater must be used to intially select which HydroServer, HydroShare, and ODM Series should be used.
+A GUI-based and optionally headless tool to select times series values from an ODM 1.1.1 database, write the data to CSV files, and upload them to their respective HydroShare resources. The VisualUpdater can be used to intially select which ODM database, HydroShare resource, and ODM time series should be used.
 
 ###### Requirements ######
 
-These tools are written for Python 2.7.X 64-bit. Depending on the size of your datasets, 32-bit Python may run out of usable memory and cause requests to fail.
+These tools were originally written for Python 2.7.X 64-bit. 
+
+**NOTE:** Efforts have been made to update the silent updater portion of the tools to Python 3. The requirements listed in the requirements.txt file may be out of date.
 
 To download, install, and run this project, execute the following commands:
 
@@ -22,7 +24,7 @@ python ./src/SilentUpdater.py
 
 #### Visual Updater Utility ####
 
-VisualUpdater.py is used to create a series of "rules" used to collect HydroServer time series values, create CSV files, and upload these to HydroShare resources. To run, simply run the following command (arguments listed below are optional):
+VisualUpdater.py is used to create a series of "rules" used to collect HydroServer time series values, create CSV files, and upload these to HydroShare resources. These rules are stored in a JSON configuration file. To run, simply run the following command (arguments listed below are optional):
 
 ```sh
 python ./src/VisualUpdater.py
@@ -35,7 +37,7 @@ python ./src/VisualUpdater.py
 
 ###### Running the Headless-mode SilentUpdater #####
 
-After you have established the HydroServer-HydroShare rules for your ODM time series, you can run the SilentUpdater.py script to update these without needing to use a GUI. This is useful for scheduling run times to keep your HydroShare resources up to date.
+After you have established the rules for which ODM time series will be written to which HydroShare Resource, you can run the SilentUpdater.py script to update these without needing to use a GUI. This is useful for scheduling run times to keep your HydroShare resources up to date (e.g., as a regular cron job).
 
 To run the Silent Updater, simply run the following command (arguments listed below are optional):
 ```sh
