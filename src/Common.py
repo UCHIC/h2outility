@@ -24,7 +24,7 @@ class Common:
         self.SKIP_HYDROSHARE = True if '--skip_hydroshare' in args else False   # Do not modify HydroShare resources
 
         self.IS_WINDOWS = 'nt' in os.name
-        self.APP_LOCAL = os.getenv('LOCALAPPDATA') or '/var/lib/h20utility'      # TODO: make this configurable for dev versus production
+        self.APP_LOCAL = os.getenv('LOCALAPPDATA') or '/var/lib/h2outility'      # TODO: make this configurable for dev versus production
         # self.APP_LOCAL = 'C:\\Users\\jeff\\Documents\\dev\\h2outil\\'
         
         self.PROJECT_DIR = str(os.path.dirname(os.path.realpath(__file__)))              # Root project directory
