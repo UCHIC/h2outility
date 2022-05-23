@@ -28,7 +28,7 @@ class Common:
         # self.APP_LOCAL = 'C:\\Users\\jeff\\Documents\\dev\\h2outil\\'
         
         self.PROJECT_DIR = str(os.path.dirname(os.path.realpath(__file__)))              # Root project directory
-        self.USER_APP_DIR = os.path.abspath(os.path.join(self.APP_LOCAL, 'h2outility'))  # Directory for operations file
+        self.USER_APP_DIR = os.path.abspath(os.path.join(self.APP_LOCAL, 'H2OUtility'))  # Directory for operations file
         self.DATASET_DIR = os.path.abspath(os.path.join(self.USER_APP_DIR, 'datasets'))  # Directory for generated CSV files
         self.LOGFILE_DIR = os.path.abspath(os.path.join(self.USER_APP_DIR, 'logs'))      # Directory for log files
         self.GUI_MODE = False                                                            # If true, send logs to GUI
