@@ -354,4 +354,3 @@ class H2OLogger:
 
     def flush(self):
         pass
-

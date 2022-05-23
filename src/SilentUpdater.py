@@ -4,7 +4,7 @@ Tool for running H2OServices in headless mode
 
 """
 
-from Utilities.H2OServices import *
+from utilities.H2OServices import *
 from Common import APP_SETTINGS
 
 
