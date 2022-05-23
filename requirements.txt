@@ -34,7 +34,7 @@ lxml==3.7.3
 markerlib==0.6.0
 mccabe==0.6.1
 networkx==1.11
-numpy==1.12.1
+numpy==1.21.0
 oauthlib==2.0.2
 odm2api
 packaging==16.8
