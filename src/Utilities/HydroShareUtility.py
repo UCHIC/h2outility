@@ -10,7 +10,7 @@ from oauthlib.oauth2 import InvalidClientError, InvalidGrantError
 
 from pubsub import pub
 from Common import APP_SETTINGS
-from Utilities.DatasetUtilities import H2OManagedResource
+from utilities.DatasetUtilities import H2OManagedResource
 
 
 class HydroShareAccountDetails:
@@ -124,7 +124,7 @@ class HydroShareResource:
             """
             value = getattr(self, reskey)
 
-            if isinstance(value, unicode):
+            if isinstance(value, str):
                 value = str(value)
 
             if isinstance(value, str):
@@ -252,7 +252,7 @@ class HydroShareUtility:
         """
         from collections import defaultdict
         re_breakdown = re.compile(regex, re.I)
-        resource_files = self.getResourceFileList(resource_id)  # type: [dict]
+        resource_files = self.getResourceFileList(resource_id)  # type: dict
         duplicates_list = []
         for remote_file in resource_files:
             url = remote_file.get('url', '')
@@ -332,7 +332,10 @@ class HydroShareUtility:
 
         :type resource: HydroShareResource
         """
-        return self.client.updateScienceMetadata(resource.id, resource.get_metadata())
+        # TODO: This call to update the science metadata is incorrect. It tries to call a function on a dict object and fails
+        # Plus, it is only updating a couple of the metadata elements, so I'm just disabling this for now by commenting out the
+        # call to this function in H2OServices.py
+        return self.client.updateScienceMetadata(resource['id'], resource.get_metadata())
 
     def _request(self, method, url, params=None, data=None, files=None, headers=None, stream=False):
         request = self.client.session.request(method, url, params=params, data=data, files=files, headers=headers,
@@ -423,7 +426,7 @@ class HydroShareUtility:
         try:
             for csv_file in files:
                 try:
-                    self.client.deleteResourceFile(resource.id, os.path.basename(csv_file))
+                    self.client.deleteResourceFile(resource['id'], os.path.basename(csv_file))
                 except HydroShareNotFound:
                     pass
                 # except Exception as e:
@@ -431,9 +434,9 @@ class HydroShareUtility:
                 #         print 'File did not exist in remote: {}, {}'.format(type(e), e)
                 if type(csv_file) != str:
                     csv_file = str(csv_file)
-                self.client.addResourceFile(resource.id, csv_file)
+                self.client.addResourceFile(resource['id'], csv_file)
 
-                msg = "File {} uploaded to remote {}".format(os.path.basename(csv_file), repr(resource))
+                msg = "File {} uploaded to remote {}".format(os.path.basename(csv_file), resource['title'])
                 print(msg)
                 pub.sendMessage('logger', message=msg)
 
@@ -462,14 +465,14 @@ class HydroShareUtility:
             raise HydroShareUtilityException("Cannot modify resources without authentication")
 
         try:
-            file_list = self.getResourceFileList(resource.id)
+            file_list = self.getResourceFileList(resource['id'])
             for file_info in file_list:
                 msg = 'Deleting resource file: {}'.format(os.path.basename(file_info['url']))
                 print(msg)
                 pub.sendMessage('logger', message=msg)
-                self.client.deleteResourceFile(resource.id, os.path.basename(file_info['url']))
+                self.client.deleteResourceFile(resource['id'], os.path.basename(file_info['url']))
         except Exception as e:
-            print('Could not delete files in resource {}\n{}'.format(resource.id, e))
+            print('Could not delete files in resource {}\n{}'.format(resource['id'], e))
 
     def getResourceCoveragePeriod(self, resource_id):
         metadata = self.client.getScienceMetadata(resource_id)

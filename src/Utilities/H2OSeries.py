@@ -1,5 +1,5 @@
-from GAMUTRawData.odmdata import Series
-from Utilities.DatasetUtilities import H2OManagedResource
+from odmdata import Series
+from utilities.DatasetUtilities import H2OManagedResource
 from Common import *
 
 __title__ = 'H2OSeries'
@@ -121,11 +121,11 @@ class OdmSeriesHelper:
         if APP_SETTINGS.VERBOSE:
             print('Determining chunking for resource {}'.format(resource))
 
-        if resource.single_file:  # If we should group into the fewest possible files
+        if resource['single_file']:  # If we should group into the fewest possible files
 
             chunk_dict = {}
-            for series in resource.selected_series.itervalues():
-                series_tuple = (series.SiteID, series.SourceID, series.QualityControlLevelID)
+            for series in resource['selected_series'].values():
+                series_tuple = (series['SiteID'], series['SourceID'], series['QualityControlLevelID'])
 
                 if series_tuple not in chunk_dict.keys():
                     chunk_dict[series_tuple] = []
@@ -135,7 +135,7 @@ class OdmSeriesHelper:
             chunk_list = chunk_dict.values()
 
         else:  # If we should group each into its own file
-            chunk_list = [[series] for series in resource.selected_series.itervalues()]
+            chunk_list = [[series] for series in resource['selected_series'].values()]
 
         if APP_SETTINGS.VERBOSE:
             for chunk in chunk_list:

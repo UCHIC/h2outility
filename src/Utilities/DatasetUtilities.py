@@ -10,8 +10,8 @@ import pandas as pd
 from pandas import DataFrame
 
 from Common import *
-from GAMUTRawData.odmdata import QualityControlLevel, Series, Site, Source, Qualifier, Variable, Method
-from GAMUTRawData.odmservices import SeriesService, ServiceManager
+from odmdata import QualityControlLevel, Series, Site, Source, Qualifier, Variable, Method
+from odmservices import SeriesService, ServiceManager
 
 this_file = os.path.realpath(__file__)
 directory = os.path.dirname(os.path.dirname(this_file))
@@ -332,13 +332,13 @@ def BuildCsvFile(series_service, series_list, year=None, failed_files=None):  # 
                         return col
 
                     # call set_axis to rename duplicate column names
-                    dataframe.set_axis('columns', dataframe.columns.map(preheader_column_mapper))
+                    dataframe.set_axis(dataframe.columns.map(preheader_column_mapper), axis='columns', inplace=True)
 
                     # build the headers
                     headers = BuildSeriesFileHeader(series_list, site, source, qualifier_codes, censorcodes, dataframe=dataframe)
 
                     # call set_axis again to remove multi-level column names and get the expected CSV output
-                    dataframe.set_axis('columns', dataframe.columns.map(lambda x: x[0] if len(x) > 1 else x))  #
+                    dataframe.set_axis(dataframe.columns.map(lambda x: x[0] if len(x) > 1 else x), axis='columns', inplace=True)
 
                     if WriteSeriesToFile(fpath, dataframe, headers):
                         return fpath
@@ -390,7 +390,6 @@ def WriteSeriesToFile(csv_name, dataframe, headers):
         return False
     elif dataframe is None and APP_SETTINGS.SKIP_QUERIES:
         print('Writing test datasets to file: {}'.format(csv_name))
-
         return True
     file_out = createFile(csv_name)
     if file_out is None:
@@ -401,7 +400,7 @@ def WriteSeriesToFile(csv_name, dataframe, headers):
         print('Writing datasets to file: {}'.format(csv_name))
         pub.sendMessage('logger', message='Creating dataset file: %s' % os.path.basename(csv_name))
         file_out.write(headers)
-        dataframe.to_csv(file_out)
+        dataframe.to_csv(file_out, line_terminator='\n')
         file_out.close()
     return True
 
@@ -604,11 +603,13 @@ class SourceInfo:
         return outputStr
 
     def sourceOutHelper(self, title, value):
-        if isinstance(title, unicode):
-            title = title.encode('utf-8').strip()
+        if isinstance(title, str):
+            # title = title.encode('utf-8').strip()
+            title = title.strip()
 
-        if isinstance(value, unicode):
-            value = value.encode('utf-8').strip()
+        if isinstance(value, str):
+            # value = value.encode('utf-8').strip()
+            value = value.strip()
         return '# {}: {} \n'.format(title, value)
 
 
@@ -672,13 +673,15 @@ class ExpandedVariableData(VariableFormatter):
         return formatted
 
     def formatHelper(self, title, var):
-        if isinstance(title, unicode):
-            title = title.encode('utf-8').strip()
-        if isinstance(var, unicode):
-            var = var.encode('utf-8').strip()
+        if isinstance(title, str):
+            # title = title.encode('utf-8').strip()
+            title = title.strip()
+        if isinstance(var, str):
+            # var = var.encode('utf-8').strip()
+            var = var.strip()
 
-            if ',' in var:
-                return '"# {}: {}"\n'.format(title, var)
+            # if ',' in var:
+                # return '"# {}: {}"\n'.format(title, var)
 
         return '# {}: {} \n'.format(title, var)
 
@@ -726,13 +729,15 @@ class CompactVariableData(VariableFormatter):
 
             rows.append(definitions)
 
-        definitions = "\n".join(['"# %s"' % ' | '.join(row) for row in rows])
+        definitions = "\n".join(['# %s' % ' | '.join(row) for row in rows])
 
         return '%s%s\n' % (header, definitions)
 
     def formatHelper(self, title, var):
-        if isinstance(title, unicode):
-            title = title.encode('utf-8').strip()
-        if isinstance(var, unicode):
-            var = var.encode('utf-8').strip()
+        if isinstance(title, str):
+            # title = title.encode('utf-8').strip()
+            title = title.strip()
+        if isinstance(var, str):
+            # var = var.encode('utf-8').strip()
+            var = var.strip()
         return '{0}: {1}'.format(title, var)

@@ -1,17 +1,16 @@
+import sys
 import datetime
-from exceptions import IOError
 from threading import Thread
 
-import jsonpickle
-import sys
 from pubsub import pub
-# from pubsub import pub
+import jsonpickle
+import json
 
-from GAMUTRawData.odmservices import ServiceManager
-from H2OSeries import OdmSeriesHelper
 from Common import APP_SETTINGS, InitializeDirectories
-from Utilities.DatasetUtilities import BuildCsvFile, GetSeriesYearRange, H2OManagedResource, OdmDatasetConnection
-from Utilities.HydroShareUtility import HydroShareAccountDetails, HydroShareUtility, ResourceTemplate
+from odmservices import ServiceManager
+from utilities.H2OSeries import OdmSeriesHelper
+from utilities.DatasetUtilities import BuildCsvFile, GetSeriesYearRange, H2OManagedResource, OdmDatasetConnection
+from utilities.HydroShareUtility import HydroShareAccountDetails, HydroShareUtility, ResourceTemplate
 
 __title__ = 'H2O Service'
 
@@ -32,8 +31,8 @@ class H2OService:
         'Uploads_Completed': lambda resource, done, total: {'completed': ((done * 100) / total) - 1, 'resource': resource}
     }
 
-    def __init__(self, hydroshare_connections=None, odm_connections=None, resource_templates=None, subscriptions=None,
-                 managed_resources=None):
+    def __init__(self, hydroshare_connections=None, odm_connections=None, resource_templates=None,
+                 subscriptions=None, managed_resources=None):
         self.HydroShareConnections = hydroshare_connections if hydroshare_connections is not None else {}  # type: dict[str, HydroShareAccountDetails]
         self.DatabaseConnections = odm_connections if odm_connections is not None else {}  # type: dict[str, OdmDatasetConnection]
         self.ResourceTemplates = resource_templates if resource_templates is not None else {}  # type: dict[str, ResourceTemplate]
@@ -51,47 +50,6 @@ class H2OService:
         self.csv_indexes = ["LocalDateTime", "UTCOffset", "DateTimeUTC"]
         self.qualifier_columns = ["QualifierID", "QualifierCode", "QualifierDescription"]
         self.csv_columns = ["DataValue", "LocalDateTime", "UTCOffset", "DateTimeUTC"]
-
-    def RunTests(self):
-        dataset_count = len(self.ManagedResources)
-        current_dataset = 0
-        resource_names = []
-        hs_account = None  # type: HydroShareAccount
-
-        for resource in self.ManagedResources.values():
-            if APP_SETTINGS.SKIP_HYDROSHARE:
-                continue
-            print('Uploading files to resource {}'.format(resource.resource.title))
-            try:
-                if hs_account is None or hs_account.name != resource.hs_account_name:
-                    print('Connecting to HydroShare account {}'.format(resource.hs_account_name))
-                    try:
-                        account = self.HydroShareConnections[resource.hs_account_name]
-                        self.ActiveHydroshare = HydroShareUtility()
-
-                        self.ActiveHydroshare.authenticate(**account.to_dict())
-
-                        connection_message = 'Successfully authenticated HydroShare account details'
-
-                    except Exception as e:
-                        connection_message = 'Unable to authenticate - An exception occurred: {}'.format(e)
-                    finally:
-                        print(connection_message)
-
-                resource_files = self.ActiveHydroshare.getResourceFileList(resource.resource_id)
-                print('Resource {} has {} files:'.format(resource.resource.title, len(resource_files)))
-                for res_file in resource_files:
-                    print(res_file)
-
-                resource_names.append(resource.resource.title)
-                current_dataset += 1
-                self.NotifyVisualH2O('Files_Uploaded', resource.resource.title, current_dataset, dataset_count)
-            except H2OService.StopThreadException as e:
-                print('File upload stopped: {}'.format(e))
-                break
-            except Exception as e:
-                print(e)
-        self.NotifyVisualH2O('Uploads_Completed', resource_names, current_dataset, dataset_count)
 
     def _thread_checkpoint(self):
         if self.StopThread:
@@ -112,18 +70,18 @@ class H2OService:
 
         else:
 
-            for rsrc in self.ManagedResources.itervalues():
+            for rsrc in self.ManagedResources.values():
 
-                if not rsrc.odm_db_name:
+                if not rsrc['odm_db_name']:
                     continue
 
-                if rsrc.odm_db_name.lower() == 'no saved connections':
+                if rsrc['odm_db_name'].lower() == 'no saved connections':
                     continue
 
-                if rsrc.odm_db_name not in database_resource_dict:
-                    database_resource_dict[rsrc.odm_db_name] = []
+                if rsrc['odm_db_name'] not in database_resource_dict:
+                    database_resource_dict[rsrc['odm_db_name']] = []
 
-                database_resource_dict[rsrc.odm_db_name].append(rsrc)
+                database_resource_dict[rsrc['odm_db_name']].append(rsrc)
 
         for db_dame in database_resource_dict.keys():
             self._thread_checkpoint()
@@ -131,39 +89,39 @@ class H2OService:
             conn = self.DatabaseConnections.get(db_dame, None)
 
             if conn is not None:
-                odm_service._current_connection = conn.ToDict()
+                odm_service._current_connection = conn
             else:
                 continue
 
             series_service = odm_service.get_series_service()
             for rsrc in database_resource_dict[db_dame]:
 
-                # Reset the associated files so they don't keep getting uploaded over, and over, and over, and over, and over, and...
-                rsrc.associated_files = []
+                # Reset the associated files so they don't keep getting uploaded over and over...
+                rsrc['associated_files'] = []
 
                 try:
                     self._thread_checkpoint()
-                    if rsrc.resource is None:
-                        print('Error encountered: resource {} is missing values'.format(rsrc.resource_id))
+                    if rsrc['resource'] is None:
+                        print('Error encountered: resource {} is missing values'.format(rsrc['resource_id']))
                         continue
 
                     current_dataset += 1
-                    self.NotifyVisualH2O('Dataset_Started', rsrc.resource.title, current_dataset, dataset_count)
+                    self.NotifyVisualH2O('Dataset_Started', rsrc['resource']['title'], current_dataset, dataset_count)
                     self._thread_checkpoint()
 
                     chunks = OdmSeriesHelper.DetermineForcedSeriesChunking(rsrc)
-                    print('\n -- {} has {} chunks {}'.format(rsrc.resource.title, len(chunks),
-                                                             'per year' if rsrc.chunk_years else ''))
+                    print('\n -- {} has {} chunks {}'.format(rsrc['resource']['title'], len(chunks),
+                                                             'per year' if rsrc['chunk_years'] else ''))
                     for chunk in chunks:
                         self._thread_checkpoint()
                         failed_files = []
                         odm_series_list = []
                         for h2o_series in chunk:
-                            result_series = series_service.get_series_from_filter(h2o_series.SiteID,
-                                                                                  h2o_series.VariableID,
-                                                                                  h2o_series.QualityControlLevelID,
-                                                                                  h2o_series.SourceID,
-                                                                                  h2o_series.MethodID)
+                            result_series = series_service.get_series_from_filter(h2o_series['SiteID'],
+                                                                                  h2o_series['VariableID'],
+                                                                                  h2o_series['QualityControlLevelID'],
+                                                                                  h2o_series['SourceID'],
+                                                                                  h2o_series['MethodID'])
                             if result_series is None:
                                 msg = 'Error: Unable to fetch ODM series {} from database {}'.format(
                                     h2o_series, db_dame)
@@ -173,26 +131,26 @@ class H2OService:
                             else:
                                 odm_series_list.append(result_series)
 
-                        if rsrc.chunk_years:
+                        if rsrc['chunk_years']:
 
                             for year in GetSeriesYearRange(odm_series_list):
                                 self._thread_checkpoint()
 
                                 result_file = BuildCsvFile(series_service, odm_series_list, year, failed_files)
                                 if result_file is not None:
-                                    rsrc.associated_files.append(result_file)
+                                    rsrc['associated_files'].append(result_file)
 
                         else:
                             self._thread_checkpoint()
 
                             result_file = BuildCsvFile(series_service, odm_series_list, failed_files=failed_files)
                             if result_file is not None:
-                                rsrc.associated_files.append(result_file)
+                                rsrc['associated_files'].append(result_file)
 
                         for filename, message in failed_files:
                             self.NotifyVisualH2O('File_Failed', filename, message)
 
-                    self.NotifyVisualH2O('Dataset_Generated', rsrc.resource.title, current_dataset, dataset_count)
+                    self.NotifyVisualH2O('Dataset_Generated', rsrc['resource']['title'], current_dataset, dataset_count)
 
                 except H2OService.StopThreadException as e:
                     print('Dataset generation stopped: {}'.format(e))
@@ -222,45 +180,45 @@ class H2OService:
             if APP_SETTINGS.SKIP_HYDROSHARE:
                 continue
 
-            if not len(resource.associated_files):
+            if not len(resource['associated_files']):
                 # If there are no files to upload, continue
                 continue
 
-            print('Uploading files to resource {}'.format(resource.resource.title))
+            print('Uploading files to resource {}'.format(resource['resource']['title']))
 
             try:
-                if self.ActiveHydroshare is None or 'None' != resource.hs_account_name:
-                    print('Connecting to HydroShare account {}'.format(resource.hs_account_name))
-                    self.ConnectToHydroShareAccount(resource.hs_account_name)
+                if self.ActiveHydroshare is None or 'None' != resource['hs_account_name']:
+                    print('Connecting to HydroShare account {}'.format(resource['hs_account_name']))
+                    self.ConnectToHydroShareAccount(resource['hs_account_name'])
 
                 if APP_SETTINGS.H2O_DEBUG:
-                    resource_files = self.ActiveHydroshare.getResourceFileList(resource.resource_id)
-                    print('Resource {} has {} files:'.format(resource.resource.title, len(resource_files)))
+                    resource_files = self.ActiveHydroshare.getResourceFileList(resource['resource_id'])
+                    print('Resource {} has {} files:'.format(resource['resource']['title'], len(resource_files)))
                     for res_file in resource_files:
                         print(res_file)
 
                 self._thread_checkpoint()
 
-                response = self.ActiveHydroshare.updateResourceMetadata(resource.resource)
-
-                if APP_SETTINGS.VERBOSE and APP_SETTINGS.H2O_DEBUG:
-                    print(response)
-
-                self._thread_checkpoint()
+                # TODO: Commented out the update resource metadata for now because it is incorrect and only tries to update
+                # a couple of the metadata elements.
+                # response = self.ActiveHydroshare.updateResourceMetadata(resource['resource'])
+                # if APP_SETTINGS.VERBOSE and APP_SETTINGS.H2O_DEBUG:
+                #     print(response)
+                # self._thread_checkpoint()
 
                 if APP_SETTINGS.DELETE_RESOURCE_FILES:
-                    self.ActiveHydroshare.deleteFilesInResource(resource.resource_id)
+                    self.ActiveHydroshare.deleteFilesInResource(resource['resource_id'])
 
-                self.ActiveHydroshare.UploadFiles(resource.associated_files, resource.resource)
+                self.ActiveHydroshare.UploadFiles(resource['associated_files'], resource['resource'])
 
                 if APP_SETTINGS.SET_RESOURCES_PUBLIC:
-                    self.ActiveHydroshare.setResourcesAsPublic([resource.resource_id])
+                    self.ActiveHydroshare.setResourcesAsPublic([resource['resource_id']])
 
-                resource_names.append(resource.resource.title)
+                resource_names.append(resource['resource']['title'])
 
                 current_dataset += 1
 
-                self.NotifyVisualH2O('Files_Uploaded', resource.resource.title, current_dataset, dataset_count)
+                self.NotifyVisualH2O('Files_Uploaded', resource['resource']['title'], current_dataset, dataset_count)
 
             except H2OService.StopThreadException as e:
                 print('File upload stopped: {}'.format(e))
@@ -275,7 +233,8 @@ class H2OService:
         try:
             account = self.HydroShareConnections[account_name]
             self.ActiveHydroshare = HydroShareUtility()
-            if self.ActiveHydroshare.authenticate(**account.to_dict()):
+            # if self.ActiveHydroshare.authenticate(**account.to_dict()):
+            if self.ActiveHydroshare.authenticate(username=account['username'], password=account['password'], client_id=account['client_id'], client_secret=account['client_secret']):
                 connection_message = 'Successfully authenticated HydroShare account details'
                 connected = True
         except Exception as e:
@@ -283,22 +242,6 @@ class H2OService:
 
         self.NotifyVisualH2O('logger', 'H2OService: ' + str(connection_message))
         return connected
-
-    def FetchResources(self):
-        try:
-            resources = self.ActiveHydroshare.getAllResources()
-            return resources
-        except Exception as e:
-            connection_message = 'Unable to fetch resources - An exception occurred: {}'.format(e)
-            self.NotifyVisualH2O('logger', 'H2OService: ' + str(connection_message))
-            return None
-
-    def StopActions(self):
-        if self.ThreadedFunction is not None:
-            self.StopThread = True
-            self.ThreadedFunction.join(3)
-        else:
-            self.NotifyVisualH2O('Operations_Stopped', 'Script was not running')
 
     def _start_as_thread(self, thread_func, resource=None):
         if self.ThreadedFunction is not None and self.ThreadedFunction.is_alive():
@@ -315,6 +258,7 @@ class H2OService:
             # If the dataset count is not 0, attempt to upload the files.
             if dataset_count:
                 print('\nStarting CSV file upload')
+                #TODO:  JSH uncomment the following line to start uploading to HydroShare again
                 self._upload_files(resource=resource)
                 self.NotifyVisualH2O('Operations_Stopped', 'CSV file upload complete')
             else:
@@ -323,9 +267,6 @@ class H2OService:
         except H2OService.StopThreadException as e:
             print('File generation and uploads stopped: {}'.format(e))
             self.NotifyVisualH2O('Operations_Stopped', 'Script stopped by user')
-
-    def StartSeriesFileUpload(self, resource, blocking=False):  # type: (H2OManagedResource, bool) -> any
-        self.StartOperations(resource=resource, blocking=blocking)
 
     def StartOperations(self, resource=None, blocking=False):  # type: (H2OManagedResource, bool) -> any
         if blocking:
@@ -353,29 +294,16 @@ class H2OService:
                 'resource_templates': self.ResourceTemplates,
                 'managed_resources': self.ManagedResources}
 
-    def SaveData(self, output_file=None):
-        if output_file is None:
-            output_file = APP_SETTINGS.SETTINGS_FILE_NAME
-        try:
-
-            data = jsonpickle.encode(self.to_json())
-
-            with open(output_file, 'w') as fout:
-                fout.write(data)
-
-            print('Dataset information successfully saved to {}'.format(output_file))
-            return True
-        except IOError as e:
-            print('Error saving to disk - file name {}\n{}'.format(output_file, e))
-            return False
-
     def LoadData(self, input_file=None):
         if input_file is None:
             input_file = APP_SETTINGS.SETTINGS_FILE_NAME
         try:
             with open(input_file, 'r') as fin:
 
-                data = jsonpickle.decode(fin.read())
+                # JSH: Modified the following to just use json instead of jsonpickle. jsonpickle was throwing errors
+                # with the full operations file 
+                # data = jsonpickle.decode(fin.read())
+                data = json.loads(fin.read())
 
                 if data is not None:
                     self.HydroShareConnections = data.get('hydroshare_connections', {})
@@ -393,14 +321,6 @@ class H2OService:
             json_out.close()
             print('Settings file does not exist - creating: {}'.format(input_file))
             return None
-
-    def CreateResourceFromTemplate(self, template):
-        """
-        :type template: ResourceTemplate
-        """
-        print('Creating resource {}'.format(template))
-
-        return self.ActiveHydroshare.createNewResource(template)
 
 
 class H2OLogger:
@@ -434,3 +354,4 @@ class H2OLogger:
 
     def flush(self):
         pass
+
