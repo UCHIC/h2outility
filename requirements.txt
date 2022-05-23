@@ -11,7 +11,7 @@ celery==3.1.23
 colorama==0.3.7
 configparser==3.5.0
 decorator==4.0.9
-Django==1.9.6
+Django==2.2.28
 django-appconf==1.0.2
 django-bower==5.1.0
 django-extensions==1.6.7
