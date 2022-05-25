@@ -82,6 +82,13 @@ class OdmSeriesHelper:
         elif isinstance(series, Series):
             return format_string.format(series.site_code, series.variable_code, series.quality_control_level_code,
                                         series.source_id, series.method_id)
+        elif isinstance(series, dict):
+            # TODO: JSH - when I removed jsonpickle, now the series is just being read from the operations file as a dictionary object.
+            # There's parts of the code like the above lines that were using object types that jsonpickle would
+            # create when reading the operations file. Cleaning those up would be good eventually because now the 
+            # code doesn't really use them.
+            return format_string.format(series['SiteCode'], series['VariableCode'], series['QualityControlLevelCode'], 
+                                        series['SourceID'], series['MethodID'])
         return 'Unable to create string from object type {}'.format(type(series))
 
     @staticmethod
@@ -119,7 +126,7 @@ class OdmSeriesHelper:
         :returns list[list[H2OSeries]]
         """
         if APP_SETTINGS.VERBOSE:
-            print('Determining chunking for resource {}'.format(resource))
+            print('Determining chunking for resource {}'.format(resource['resource']['title']))
 
         if resource['single_file']:  # If we should group into the fewest possible files
 
